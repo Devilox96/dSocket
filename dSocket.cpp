@@ -393,6 +393,10 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
             std::cerr << "dSocket::readFromAddress" << std::endl;
         }
 
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return dSocketResult::RECV_TIMEOUT;
+        }
+
         return dSocketResult::READ_ERROR;
     }
 

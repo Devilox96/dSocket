@@ -50,7 +50,8 @@ enum class dSocketResult {
     HOST_UNREACHABLE,
     READ_ERROR,
     WRITE_ERROR,
-    UNKNOWN
+    UNKNOWN,
+    RECV_TIMEOUT
 };
 //-----------------------------//
 class dSocket {
