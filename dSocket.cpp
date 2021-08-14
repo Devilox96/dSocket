@@ -277,14 +277,6 @@ dSocketResult dSocket::readFromSocket(uint8_t* tDstBuffer, size_t tBufferSize, s
     return dSocketResult::SUCCESS;
 }
 dSocketResult dSocket::writeToSocket(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
-    if (mType != dSocketType::CLIENT) {
-        if (mVerbose) {
-            std::cerr << "dSocket::writeToSocket" << std::endl;
-        }
-
-        return dSocketResult::WRONG_SOCKET_TYPE;
-    }
-
     if (mProtocol != dSocketProtocol::TCP) {
         if (mVerbose) {
             std::cerr << "dSocket::writeToSocket" << std::endl;
@@ -343,6 +335,14 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
     return dSocketResult::SUCCESS;
 }
 dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+    if (mType != dSocketType::CLIENT) {
+        if (mVerbose) {
+            std::cerr << "dSocket::writeToSocket" << std::endl;
+        }
+
+        return dSocketResult::WRONG_SOCKET_TYPE;
+    }
+
     if (mProtocol != dSocketProtocol::UDP) {
         if (mVerbose) {
             std::cerr << "dSocket::writeToAddress" << std::endl;
