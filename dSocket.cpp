@@ -13,6 +13,11 @@ dSocket::~dSocket() {
     mSocket = 0;
 }
 //-----------------------------//
+/**
+ * Function for initial socket creation
+ * @param tProtocol Specified protocol (TCP / UDP)
+ * @return Status
+ */
 dSocketResult dSocket::init(dSocketProtocol tProtocol) {
     mProtocol = tProtocol;
 
@@ -39,19 +44,19 @@ dSocketResult dSocket::init(dSocketProtocol tProtocol) {
     return dSocketResult::SUCCESS;
 }
 
-dSocketResult dSocket::setTimeoutOption(uint32_t tMilliseconds) const {
-    timeval tv{
-            .tv_sec = tMilliseconds / 1000,
-            .tv_usec = tMilliseconds % 1000 * 1000
-    };
-
-    if (setsockopt(mSocket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("Error");
+/**
+ * Function for disabling Nagle algorithm for TCP socket (enabled by default) to
+ * reduce writing latency if needed
+ * @param tEnable Flag (true to disable Nagle algorithm)
+ * @return Status
+ */
+dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
+    if (mProtocol != dSocketProtocol::TCP) {
+        return dSocketResult::WRONG_PROTOCOL;
     }
 
-    return dSocketResult::SUCCESS;
-}
-dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
+    //----------//
+
     int Flag = static_cast <int>(tEnable);
 
     if (setsockopt(mSocket, IPPROTO_TCP, TCP_NODELAY, &Flag, sizeof(Flag)) == -1) {
@@ -64,6 +69,12 @@ dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
 
     return dSocketResult::SUCCESS;
 }
+/**
+ * Function for allowing a socket to be bound to the same port right after it was closed (TCP)
+ * or for sharing a datagram between sockets bound to the same port (UDP)
+ * @param tEnable Flag
+ * @return Status
+ */
 dSocketResult dSocket::setReuseOption(bool tEnable) const {
     int Flag = static_cast <int>(tEnable);
 
@@ -78,6 +89,14 @@ dSocketResult dSocket::setReuseOption(bool tEnable) const {
     return dSocketResult::SUCCESS;
 }
 
+/**
+ * Function for filling socket structures and, in case of server, binding to the specified
+ * port
+ * @param tType Server or client
+ * @param tPort Port
+ * @param tServerAddress Address to connect to (ignored in case of server type)
+ * @return Status
+ */
 dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::string& tServerAddress) {
     if (mProtocol == dSocketProtocol::UNDEFINED) {
         if (mVerbose) {
@@ -141,8 +160,13 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
 }
 
 void dSocket::acceptConnection() {
-
+///---TODO---///
 }
+/**
+ * Function for connecting to server, also sets the socket to non-blocking mode
+ * @param tTimeoutMs Select timeout value
+ * @return Status
+ */
 dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
     if (mProtocol != dSocketProtocol::TCP) {
         if (mVerbose) {
@@ -250,13 +274,20 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
         throw dSocketException(dSocketException::CONNECT_ERROR, strerror(errno));
     }
 
-    //---DO SOMETHING---//
+    ///---DO SOMETHING---///
 #endif
 
     return dSocketResult::SUCCESS;
 }
 //-----------------------------//
-dSocketResult dSocket::readFromSocket(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+/**
+ * Function for reading data from the TCP socket
+ * @param tDstBuffer Buffer to put data into
+ * @param tBufferSize Buffer size
+ * @param tReadBytes Number of bytes actually received
+ * @return Status
+ */
+dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
     if (mProtocol != dSocketProtocol::TCP) {
         return dSocketResult::WRONG_PROTOCOL;
     }
@@ -267,7 +298,7 @@ dSocketResult dSocket::readFromSocket(uint8_t* tDstBuffer, size_t tBufferSize, s
 
     if ((ReadBytes = read(mSocket, tDstBuffer, tBufferSize)) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromSocket" << std::endl;
+            std::cerr << "dSocket::readTCP" << std::endl;
         }
 
         return dSocketResult::READ_ERROR;
@@ -276,10 +307,17 @@ dSocketResult dSocket::readFromSocket(uint8_t* tDstBuffer, size_t tBufferSize, s
     *tReadBytes = ReadBytes;
     return dSocketResult::SUCCESS;
 }
-dSocketResult dSocket::writeToSocket(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+/**
+ * Function for writing data to the TCP socket
+ * @param tSrcBuffer Buffer with the data to send
+ * @param tBufferSize Buffer size
+ * @param tWrittenBytes Number of bytes actually written
+ * @return Status
+ */
+dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
     if (mProtocol != dSocketProtocol::TCP) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToSocket" << std::endl;
+            std::cerr << "dSocket::writeTCP" << std::endl;
         }
 
         return dSocketResult::WRONG_PROTOCOL;
@@ -291,7 +329,7 @@ dSocketResult dSocket::writeToSocket(const uint8_t* tSrcBuffer, size_t tBufferSi
 
     if ((WrittenBytes = send(mSocket, tSrcBuffer, tBufferSize, MSG_NOSIGNAL)) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToSocket" << std::endl;
+            std::cerr << "dSocket::writeTCP" << std::endl;
         }
 
         return dSocketResult::WRITE_ERROR;
@@ -301,10 +339,17 @@ dSocketResult dSocket::writeToSocket(const uint8_t* tSrcBuffer, size_t tBufferSi
     return dSocketResult::SUCCESS;
 }
 
-dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+/**
+ * Function for reading data from the UDP server that this socket is connected to
+ * @param tDstBuffer Buffer to put data into
+ * @param tBufferSize Buffer size
+ * @param tReadBytes Number of bytes actually received
+ * @return Status
+ */
+dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_SOCKET_TYPE;
@@ -312,7 +357,7 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
 
     if (mProtocol != dSocketProtocol::UDP) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_PROTOCOL;
@@ -325,7 +370,7 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
 
     if ((ReadBytes = recvfrom(mSocket, tDstBuffer, tBufferSize, 0, (struct sockaddr*)&mStruct, &StructSize)) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         return dSocketResult::READ_ERROR;
@@ -334,10 +379,17 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
     *tReadBytes = ReadBytes;
     return dSocketResult::SUCCESS;
 }
-dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+/**
+ * Function for writing data to the UDP server that this socket is connected to
+ * @param tSrcBuffer Buffer with the data to send
+ * @param tBufferSize Buffer size
+ * @param tWrittenBytes Number of bytes actually written
+ * @return Status
+ */
+dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToSocket" << std::endl;
+            std::cerr << "dSocket::writeTCP" << std::endl;
         }
 
         return dSocketResult::WRONG_SOCKET_TYPE;
@@ -345,7 +397,7 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
 
     if (mProtocol != dSocketProtocol::UDP) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToAddress" << std::endl;
+            std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_PROTOCOL;
@@ -357,7 +409,7 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
 
     if ((WrittenBytes = sendto(mSocket, tSrcBuffer, tBufferSize, 0, (const struct sockaddr*)&mStruct, sizeof(mStruct))) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToAddress" << std::endl;
+            std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
         return dSocketResult::WRITE_ERROR;
@@ -367,10 +419,19 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
     return dSocketResult::SUCCESS;
 }
 
-dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const {
+/**
+ * Function for reading data from the specified UDP client
+ * @param tDstBuffer Buffer to put data into
+ * @param tBufferSize Buffer size
+ * @param tReadBytes Number of bytes actually received
+ * @param tClientStruct Client data structure
+ * @param tClientStructSize Client data structure size
+ * @return Status
+ */
+dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_SOCKET_TYPE;
@@ -378,7 +439,7 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
 
     if (mProtocol != dSocketProtocol::UDP) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_PROTOCOL;
@@ -390,7 +451,7 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
 
     if ((ReadBytes = recvfrom(mSocket, tDstBuffer, tBufferSize, 0, tClientStruct, tClientStructSize)) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::readFromAddress" << std::endl;
+            std::cerr << "dSocket::readUDP" << std::endl;
         }
 
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -403,10 +464,19 @@ dSocketResult dSocket::readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, 
     *tReadBytes = ReadBytes;
     return dSocketResult::SUCCESS;
 }
-dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const {
+/**
+ * Function for writing data to the specified UDP client
+ * @param tSrcBuffer Buffer with the data to send
+ * @param tBufferSize Buffer size
+ * @param tWrittenBytes Number of bytes actually written
+ * @param tClientStruct Client data structure
+ * @param tClientStructSize Client data structure size
+ * @return Status
+ */
+dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToAddress" << std::endl;
+            std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_SOCKET_TYPE;
@@ -414,7 +484,7 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
 
     if (mProtocol != dSocketProtocol::UDP) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToAddress" << std::endl;
+            std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
         return dSocketResult::WRONG_PROTOCOL;
@@ -426,7 +496,7 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
 
     if ((WrittenBytes = sendto(mSocket, tSrcBuffer, tBufferSize, 0, tClientStruct, tClientStructSize)) == -1) {
         if (mVerbose) {
-            std::cerr << "dSocket::writeToAddress" << std::endl;
+            std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
         return dSocketResult::WRITE_ERROR;
@@ -436,6 +506,12 @@ dSocketResult dSocket::writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferS
     return dSocketResult::SUCCESS;
 }
 //-----------------------------//
+/**
+ * Function converts x.x.x.x format IPv4 address to a 4-byte number for more
+ * efficient storing
+ * @param tAddress Address string
+ * @return 4-byte number
+ */
 uint32_t dSocket::convertIpv4ToUint(const std::string& tAddress) {
     uint16_t A, B, C, D;
     char Delimiter;
@@ -451,6 +527,11 @@ uint32_t dSocket::convertIpv4ToUint(const std::string& tAddress) {
 
     return Number;
 }
+/**
+ * Function converts 4-byte number IPv4 address to a human-readable string x.x.x.x
+ * @param tAddress Address number
+ * @return human-readable string
+ */
 std::string dSocket::convertUintToIpv4(uint32_t tAddress) {
     uint16_t A, B, C, D;
     char Delimiter = '.';

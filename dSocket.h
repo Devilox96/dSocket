@@ -74,14 +74,14 @@ public:
 
     //----------//
 
-    dSocketResult readFromSocket(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
-    dSocketResult writeToSocket(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+    dSocketResult readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
+    dSocketResult writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
 
-    dSocketResult readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
-    dSocketResult writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
+    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
 
-    dSocketResult readFromAddress(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const;
-    dSocketResult writeToAddress(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const;
+    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const;
+    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const;
 
     //----------//
 
