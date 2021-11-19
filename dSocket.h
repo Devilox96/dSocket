@@ -51,7 +51,8 @@ enum class dSocketResult {
     READ_ERROR,
     WRITE_ERROR,
     UNKNOWN,
-    RECV_TIMEOUT
+    RECV_TIMEOUT,
+    ACCEPT_ERROR
 };
 //-----------------------------//
 class dSocket {
@@ -63,19 +64,23 @@ public:
 
     dSocketResult init(dSocketProtocol tProtocol);
 
-    [[nodiscard]] dSocketResult setTimeoutOption(uint32_t tMilliseconds) const;
     [[nodiscard]] dSocketResult setNoDelayOption(bool tEnable) const;
     [[nodiscard]] dSocketResult setReuseOption(bool tEnable) const;
 
     dSocketResult finalize(dSocketType tType, uint16_t tPort, const std::string& tServerAddress = "");
 
-    void acceptConnection();
+    int acceptConnection();
     dSocketResult connectToServer(uint32_t tTimeoutMs);
 
     //----------//
 
     dSocketResult readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
     dSocketResult writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+
+    dSocketResult readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
+    dSocketResult writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+
+    //----------//
 
     dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
     dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;

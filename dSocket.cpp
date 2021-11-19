@@ -158,9 +158,21 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
 
     return dSocketResult::SUCCESS;
 }
+/**
+ * Function that is need to be called in a separate thread due to blocking call of accept
+ * @return Client socket fd, -1 otherwise
+ */
+int dSocket::acceptConnection() {
+    socklen_t StructSize = sizeof(mStruct);
+    int Socket = -1;
 
-void dSocket::acceptConnection() {
-///---TODO---///
+    if ((Socket = accept(mSocket, (struct sockaddr*)&mStruct, &StructSize)) == -1) {
+        if (mVerbose) {
+            std::cerr << "dSocket::acceptConnection" << std::endl;
+        }
+    }
+
+    return Socket;
 }
 /**
  * Function for connecting to server, also sets the socket to non-blocking mode
@@ -288,7 +300,20 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
  * @return Status
  */
 dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+    if (mType != dSocketType::CLIENT) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readUDP" << std::endl;
+        }
+
+        return dSocketResult::WRONG_SOCKET_TYPE;
+    }
+
+
     if (mProtocol != dSocketProtocol::TCP) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readTCP" << std::endl;
+        }
+
         return dSocketResult::WRONG_PROTOCOL;
     }
 
@@ -315,6 +340,15 @@ dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
  * @return Status
  */
 dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+    if (mType != dSocketType::CLIENT) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readUDP" << std::endl;
+        }
+
+        return dSocketResult::WRONG_SOCKET_TYPE;
+    }
+
+
     if (mProtocol != dSocketProtocol::TCP) {
         if (mVerbose) {
             std::cerr << "dSocket::writeTCP" << std::endl;
@@ -328,6 +362,69 @@ dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
     ssize_t WrittenBytes;
 
     if ((WrittenBytes = send(mSocket, tSrcBuffer, tBufferSize, MSG_NOSIGNAL)) == -1) {
+        if (mVerbose) {
+            std::cerr << "dSocket::writeTCP" << std::endl;
+        }
+
+        return dSocketResult::WRITE_ERROR;
+    }
+
+    *tWrittenBytes = WrittenBytes;
+    return dSocketResult::SUCCESS;
+}
+
+
+
+dSocketResult dSocket::readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+    if (mType != dSocketType::SERVER) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readUDP" << std::endl;
+        }
+
+        return dSocketResult::WRONG_SOCKET_TYPE;
+    }
+
+    if (mProtocol != dSocketProtocol::TCP) {
+        return dSocketResult::WRONG_PROTOCOL;
+    }
+
+    //----------//
+
+    ssize_t ReadBytes;
+
+    if ((ReadBytes = read(tSocket, tDstBuffer, tBufferSize)) == -1) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readTCP" << std::endl;
+        }
+
+        return dSocketResult::READ_ERROR;
+    }
+
+    *tReadBytes = ReadBytes;
+    return dSocketResult::SUCCESS;
+}
+dSocketResult dSocket::writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+    if (mType != dSocketType::SERVER) {
+        if (mVerbose) {
+            std::cerr << "dSocket::readUDP" << std::endl;
+        }
+
+        return dSocketResult::WRONG_SOCKET_TYPE;
+    }
+
+    if (mProtocol != dSocketProtocol::TCP) {
+        if (mVerbose) {
+            std::cerr << "dSocket::writeTCP" << std::endl;
+        }
+
+        return dSocketResult::WRONG_PROTOCOL;
+    }
+
+    //----------//
+
+    ssize_t WrittenBytes;
+
+    if ((WrittenBytes = send(tSocket, tSrcBuffer, tBufferSize, MSG_NOSIGNAL)) == -1) {
         if (mVerbose) {
             std::cerr << "dSocket::writeTCP" << std::endl;
         }
