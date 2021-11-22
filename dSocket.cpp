@@ -30,11 +30,11 @@ dSocketResult dSocket::init(dSocketProtocol tProtocol) {
             break;
         case dSocketProtocol::UNDEFINED:
             return dSocketResult::WRONG_PROTOCOL;
-            break;
     }
 
     if (mSocket < 0) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::init" << std::endl;
         }
 
@@ -50,7 +50,7 @@ dSocketResult dSocket::init(dSocketProtocol tProtocol) {
  * @param tEnable Flag (true to disable Nagle algorithm)
  * @return Status
  */
-dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
+dSocketResult dSocket::setNoDelayOption(bool tEnable) {
     if (mProtocol != dSocketProtocol::TCP) {
         return dSocketResult::WRONG_PROTOCOL;
     }
@@ -61,6 +61,7 @@ dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
 
     if (setsockopt(mSocket, IPPROTO_TCP, TCP_NODELAY, &Flag, sizeof(Flag)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::setNoDelayOption" << std::endl;
         }
 
@@ -75,11 +76,12 @@ dSocketResult dSocket::setNoDelayOption(bool tEnable) const {
  * @param tEnable Flag
  * @return Status
  */
-dSocketResult dSocket::setReuseOption(bool tEnable) const {
+dSocketResult dSocket::setReuseOption(bool tEnable) {
     int Flag = static_cast <int>(tEnable);
 
     if (setsockopt(mSocket, SOL_SOCKET, SO_REUSEADDR, &Flag, sizeof(Flag)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::setReuseOption" << std::endl;
         }
 
@@ -124,6 +126,7 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
 
             if (bind(mSocket, (struct sockaddr*)&mStruct, sizeof(mStruct)) == -1) {
                 if (mVerbose) {
+                    mLastErrno = errno;
                     std::cerr << "dSocket::finalize" << std::endl;
                 }
 
@@ -133,6 +136,7 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
             if (mProtocol == dSocketProtocol::TCP) {
                 if (listen(mSocket, 1) == -1) {
                     if (mVerbose) {
+                        mLastErrno = errno;
                         std::cerr << "dSocket::finalize" << std::endl;
                     }
 
@@ -147,6 +151,7 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
 
             if (inet_pton(AF_INET, tServerAddress.data(), &mStruct.sin_addr) <= 0) {
                 if (mVerbose) {
+                    mLastErrno = errno;
                     std::cerr << "dSocket::finalize" << std::endl;
                 }
 
@@ -160,14 +165,15 @@ dSocketResult dSocket::finalize(dSocketType tType, uint16_t tPort, const std::st
 }
 /**
  * Function that is need to be called in a separate thread due to blocking call of accept
- * @return Client socket fd, -1 otherwise
+ * @return Unlike other functions this one must return client socket fd, -1 otherwise
  */
 int dSocket::acceptConnection() {
     socklen_t StructSize = sizeof(mStruct);
-    int Socket = -1;
+    int Socket;
 
     if ((Socket = accept(mSocket, (struct sockaddr*)&mStruct, &StructSize)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::acceptConnection" << std::endl;
         }
     }
@@ -206,6 +212,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
     if ((Flags = fcntl(mSocket, F_GETFL, nullptr)) < 0) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::connectToServer" << std::endl;
         }
 
@@ -214,6 +221,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
     if (fcntl(mSocket, F_SETFL, Flags | O_NONBLOCK) < 0) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::connectToServer" << std::endl;
         }
 
@@ -235,6 +243,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
     if (fcntl(mSocket, F_SETFL, Flags) < 0) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::connectToServer" << std::endl;
         }
 
@@ -243,6 +252,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
     if (Result < 0) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::connectToServer" << std::endl;
         }
 
@@ -250,6 +260,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
     } else if (Result == 0) {
         errno = ETIMEDOUT;
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::connectToServer" << std::endl;
         }
 
@@ -259,6 +270,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
         if (getsockopt(mSocket, SOL_SOCKET, SO_ERROR, &Flags, &Length) < 0) {
             if (mVerbose) {
+                mLastErrno = errno;
                 std::cerr << "dSocket::connectToServer" << std::endl;
             }
 
@@ -272,8 +284,10 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
 
             switch (Flags) {
                 case 111:
+                    mLastErrno = errno;
                     return dSocketResult::CONNECTION_REFUSED;
                 case 113:
+                    mLastErrno = errno;
                     return dSocketResult::HOST_UNREACHABLE;
                 default:
                     std::cerr << "Unknown (SO_ERROR " << Flags << ")" << std::endl;
@@ -299,7 +313,7 @@ dSocketResult dSocket::connectToServer(uint32_t tTimeoutMs) {
  * @param tReadBytes Number of bytes actually received
  * @return Status
  */
-dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -321,8 +335,9 @@ dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
 
     ssize_t ReadBytes;
 
-    if ((ReadBytes = read(mSocket, tDstBuffer, tBufferSize)) == -1) {
+    if ((ReadBytes = recv(mSocket, tDstBuffer, tBufferSize, 0)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::readTCP" << std::endl;
         }
 
@@ -339,7 +354,7 @@ dSocketResult dSocket::readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
  * @param tWrittenBytes Number of bytes actually written
  * @return Status
  */
-dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -363,6 +378,7 @@ dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
 
     if ((WrittenBytes = send(mSocket, tSrcBuffer, tBufferSize, MSG_NOSIGNAL)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::writeTCP" << std::endl;
         }
 
@@ -375,7 +391,7 @@ dSocketResult dSocket::writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
 
 
 
-dSocketResult dSocket::readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+dSocketResult dSocket::readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -392,8 +408,9 @@ dSocketResult dSocket::readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferS
 
     ssize_t ReadBytes;
 
-    if ((ReadBytes = read(tSocket, tDstBuffer, tBufferSize)) == -1) {
+    if ((ReadBytes = recv(tSocket, tDstBuffer, tBufferSize, 0)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::readTCP" << std::endl;
         }
 
@@ -403,7 +420,7 @@ dSocketResult dSocket::readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferS
     *tReadBytes = ReadBytes;
     return dSocketResult::SUCCESS;
 }
-dSocketResult dSocket::writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+dSocketResult dSocket::writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -426,6 +443,7 @@ dSocketResult dSocket::writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t t
 
     if ((WrittenBytes = send(tSocket, tSrcBuffer, tBufferSize, MSG_NOSIGNAL)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::writeTCP" << std::endl;
         }
 
@@ -443,7 +461,7 @@ dSocketResult dSocket::writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t t
  * @param tReadBytes Number of bytes actually received
  * @return Status
  */
-dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const {
+dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -467,6 +485,7 @@ dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
 
     if ((ReadBytes = recvfrom(mSocket, tDstBuffer, tBufferSize, 0, (struct sockaddr*)&mStruct, &StructSize)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::readUDP" << std::endl;
         }
 
@@ -483,7 +502,7 @@ dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
  * @param tWrittenBytes Number of bytes actually written
  * @return Status
  */
-dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const {
+dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) {
     if (mType != dSocketType::CLIENT) {
         if (mVerbose) {
             std::cerr << "dSocket::writeTCP" << std::endl;
@@ -506,6 +525,7 @@ dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
 
     if ((WrittenBytes = sendto(mSocket, tSrcBuffer, tBufferSize, 0, (const struct sockaddr*)&mStruct, sizeof(mStruct))) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
@@ -525,7 +545,7 @@ dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
  * @param tClientStructSize Client data structure size
  * @return Status
  */
-dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const {
+dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
             std::cerr << "dSocket::readUDP" << std::endl;
@@ -548,6 +568,7 @@ dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
 
     if ((ReadBytes = recvfrom(mSocket, tDstBuffer, tBufferSize, 0, tClientStruct, tClientStructSize)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::readUDP" << std::endl;
         }
 
@@ -570,7 +591,7 @@ dSocketResult dSocket::readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t*
  * @param tClientStructSize Client data structure size
  * @return Status
  */
-dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const {
+dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) {
     if (mType != dSocketType::SERVER) {
         if (mVerbose) {
             std::cerr << "dSocket::writeUDP" << std::endl;
@@ -593,6 +614,7 @@ dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
 
     if ((WrittenBytes = sendto(mSocket, tSrcBuffer, tBufferSize, 0, tClientStruct, tClientStructSize)) == -1) {
         if (mVerbose) {
+            mLastErrno = errno;
             std::cerr << "dSocket::writeUDP" << std::endl;
         }
 
@@ -601,6 +623,103 @@ dSocketResult dSocket::writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, s
 
     *tWrittenBytes = WrittenBytes;
     return dSocketResult::SUCCESS;
+}
+//-----------------------------//
+/**
+ * Function return the latest errno value written in the mLastErrno variable
+ * @return
+ */
+std::string dSocket::getLastError() const {
+    switch (mLastErrno) {
+        case 0:
+            return "Success!";
+        case EPERM:                             //---1---//
+            return "EPERM";
+        case ENOENT:                            //---2---//
+            return "ENOENT";
+        case EINTR:                             //---4----//
+            return "EINTR";
+        case EBADF:                             //---9----//
+            return "EBADF";
+        case EAGAIN:                            //---11---//
+            return "EAGAIN";
+        case ENOMEM:                            //---12----//
+            return "ENOMEM";
+        case EACCES:                            //---13---//
+            return "EACCES (EWOULDBLOCK)";
+        case EFAULT:                            //---14----//
+            return "EFAULT";
+        case EBUSY:                             //---16---//
+            return "EBUSY";
+        case ENOTDIR:                           //---20---//
+            return "ENOTDIR";
+        case EINVAL:                            //---22----//
+            return "EINVAL";
+        case ENFILE:                            //---23---//
+            return "ENFILE";
+        case EMFILE:                            //---24---//
+            return "EMFILE";
+        case EROFS:                             //---30---//
+            return "EROFS";
+        case EPIPE:                             //---32----//
+            return "EPIPE";
+        case EDEADLK:                           //---35---//
+            return "EDEADLK";
+        case ENAMETOOLONG:                      //---36---//
+            return "ENAMETOOLONG";
+        case ENOLCK:                            //---37---//
+            return "ENOLCK";
+        case ELOOP:                             //---40---//
+            return "ELOOP";
+        case ENOSR:                             //---63---//
+            return "ENOSR";
+        case EPROTO:                            //---71---//
+            return "EPROTO";
+        case ENOTSOCK:                          //---88----//
+            return "ENOTSOCK";
+        case EDESTADDRREQ:                      //---89----//
+            return "EDESTADDRREQ";
+        case EMSGSIZE:                          //---90----//
+            return "EMSGSIZE";
+        case EPROTOTYPE:                        //---91---//
+            return "EPROTOTYPE";
+        case ENOPROTOOPT:                       //---92---//
+            return "ENOPROTOOPT";
+        case EPROTONOSUPPORT:                   //---93---//
+            return "EPROTONOSUPPORT";
+        case ESOCKTNOSUPPORT:                   //---94---//
+            return "ESOCKTNOSUPPORT";
+        case EOPNOTSUPP:                        //---95----//
+            return "EOPNOTSUPP";
+        case EAFNOSUPPORT:                      //---97---//
+            return "EAFNOSUPPORT";
+        case EADDRINUSE:                        //---98---//
+            return "EADDRINUSE";
+        case EADDRNOTAVAIL:                     //---99---//
+            return "EADDRNOTAVAIL";
+        case ENETUNREACH:                       //---101---//
+            return "ENETUNREACH";
+        case ECONNABORTED:                      //---103---//
+            return "ECONNABORTED";
+        case ECONNRESET:                        //---104----//
+            return "ECONNRESET";
+        case ENOBUFS:                           //---105----//
+            return "ENOBUFS";
+        case EISCONN:                           //---106----//
+            return "EISCONN";
+        case ENOTCONN:                          //---107----//
+            return "ENOTCONN";
+        case ETIMEDOUT:                         //---110---//
+            return "ETIMEDOUT";
+        case ECONNREFUSED:                      //---111---//
+            return "ECONNREFUSED";
+        case EALREADY:                          //---114---//
+            return "EALREADY";
+        case EINPROGRESS:                       //---115---//
+            return "EINPROGRESS";
+        default:
+            return "Unknown error!";
+    }
 }
 //-----------------------------//
 /**

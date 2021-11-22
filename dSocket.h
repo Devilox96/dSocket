@@ -31,7 +31,7 @@ enum class dSocketType {
     CLIENT
 };
 enum class dSocketResult {
-    SUCCESS,
+    SUCCESS                         = 0x0000,
     CREATE_FAILURE,
     WSA_FAILURE,
     GET_OPTION_FAILURE,
@@ -50,9 +50,8 @@ enum class dSocketResult {
     HOST_UNREACHABLE,
     READ_ERROR,
     WRITE_ERROR,
-    UNKNOWN,
     RECV_TIMEOUT,
-    ACCEPT_ERROR
+    UNKNOWN                         = 0xFFFF
 };
 //-----------------------------//
 class dSocket {
@@ -64,8 +63,8 @@ public:
 
     dSocketResult init(dSocketProtocol tProtocol);
 
-    [[nodiscard]] dSocketResult setNoDelayOption(bool tEnable) const;
-    [[nodiscard]] dSocketResult setReuseOption(bool tEnable) const;
+    [[nodiscard]] dSocketResult setNoDelayOption(bool tEnable);
+    [[nodiscard]] dSocketResult setReuseOption(bool tEnable);
 
     dSocketResult finalize(dSocketType tType, uint16_t tPort, const std::string& tServerAddress = "");
 
@@ -74,19 +73,23 @@ public:
 
     //----------//
 
-    dSocketResult readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
-    dSocketResult writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+    dSocketResult readTCP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes);
+    dSocketResult writeTCP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes);
 
-    dSocketResult readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
-    dSocketResult writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+    dSocketResult readTCP(int tSocket, uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes);
+    dSocketResult writeTCP(int tSocket, const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes);
 
     //----------//
 
-    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes) const;
-    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes) const;
+    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes);
+    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes);
 
-    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize) const;
-    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize) const;
+    dSocketResult readUDP(uint8_t* tDstBuffer, size_t tBufferSize, ssize_t* tReadBytes, sockaddr* tClientStruct, socklen_t* tClientStructSize);
+    dSocketResult writeUDP(const uint8_t* tSrcBuffer, size_t tBufferSize, ssize_t* tWrittenBytes, const sockaddr* tClientStruct, socklen_t tClientStructSize);
+
+    //----------//
+
+    [[nodiscard]] std::string getLastError() const;
 
     //----------//
 
@@ -103,6 +106,8 @@ private:
     dSocketType         mType           = dSocketType::UNDEFINED;
     dSocketProtocol     mProtocol       = dSocketProtocol::UNDEFINED;
     bool                mVerbose        = false;
+
+    int                 mLastErrno      = 0;
 };
 //-----------------------------//
 #endif
